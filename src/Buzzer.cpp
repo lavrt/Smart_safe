@@ -8,7 +8,7 @@ Buzzer::Buzzer(int pin, bool activeLevel)
 
 void Buzzer::begin() {
     pinMode(_pin, OUTPUT);
-    setOutput(false); // на старте молчим
+    setOutput(false);
 }
 
 void Buzzer::setOutput(bool on) {
@@ -26,4 +26,9 @@ void Buzzer::update() {
         _isBeeping = false;
         setOutput(false);
     }
+}
+
+void Buzzer::stop() {
+    _isBeeping = false;
+    setOutput(false);
 }

@@ -3,12 +3,11 @@
 
 class DoorSensor {
 public:
-    // doorOpenLevel — уровень на пине, который считаем "дверь ОТКРЫТА"
     DoorSensor(int pin, bool doorOpenLevel = HIGH);
 
-    void begin();           // настроить пин
-    bool isOpen() const;    // читаем текущее состояние
-    String getStatusText() const; // текст для Telegram
+    void begin();
+    bool isOpen() const;
+    String getStatusText() const;
 
 private:
     int _pin;

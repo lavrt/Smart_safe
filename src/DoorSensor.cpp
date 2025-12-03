@@ -5,7 +5,6 @@ DoorSensor::DoorSensor(int pin, bool doorOpenLevel)
       _doorOpenLevel(doorOpenLevel) {}
 
 void DoorSensor::begin() {
-    // Геркон -> пин + GND, используем подтяжку к VCC
     pinMode(_pin, INPUT_PULLUP);
 }
 

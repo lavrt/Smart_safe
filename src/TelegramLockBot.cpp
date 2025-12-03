@@ -1,4 +1,9 @@
 #include "TelegramLockBot.hpp"
+#include "FingerprintAuth.hpp"
+#include "SafeCamera.hpp"
+
+extern SafeCamera safeCamera;
+extern FingerprintAuth fingerprintAuth;
 
 TelegramLockBot::TelegramLockBot(
     UniversalTelegramBot& bot,
@@ -99,15 +104,94 @@ void TelegramLockBot::handleNewMessages(int numNewMessages) {
 
             if (!_lock.isOpen()) {
                 _lock.open();
-                _buzzer.beep(120);  // короткий писк при успешном открытии
+                _buzzer.beep(2);
 
                 String msg = "🔓 Замок открыт.";
                 _bot.sendMessage(chat_id, msg, "");
             } else {
                 _bot.sendMessage(chat_id, "Замок уже открыт.", "");
             }
-        }
-        else {
+        } else if (text.startsWith("/enroll")) {
+            if (!_accessManager.canConfigure(role)) {
+                _bot.sendMessage(chat_id,
+                                "🚫 Только администратор может регистрировать отпечатки.",
+                                "");
+                continue;
+            }
+
+            if (_lock.isOpen()) {
+                _bot.sendMessage(chat_id,
+                                "❌ Нельзя регистрировать отпечаток, пока сейф открыт.\n"
+                                "Сначала закройте сейф, затем повторите команду /enroll.",
+                                "");
+                continue;
+            }
+
+            int firstSpace = text.indexOf(' ');
+            if (firstSpace < 0 || firstSpace == (int)text.length() - 1) {
+                _bot.sendMessage(chat_id,
+                                "Использование: /enroll <id> [имя]\nНапример: /enroll 5 Alex",
+                                "");
+                continue;
+            }
+
+            String rest = text.substring(firstSpace + 1);
+            rest.trim();
+
+            int secondSpace = rest.indexOf(' ');
+            String idStr;
+            String label;
+
+            if (secondSpace < 0) {
+                idStr = rest;
+                label = "";
+            } else {
+                idStr = rest.substring(0, secondSpace);
+                label = rest.substring(secondSpace + 1);
+                label.trim();
+            }
+
+            int id = idStr.toInt();
+            if (id <= 0) {
+                _bot.sendMessage(chat_id,
+                                "ID должен быть положительным числом. Пример: /enroll 3",
+                                "");
+                continue;
+            }
+
+            _bot.sendMessage(chat_id,
+                            "Запускаю регистрацию отпечатка в слот #" + String(id) +
+                            ". Это может занять до 1 минуты.\n"
+                            "Следуйте подсказкам.",
+                            "");
+
+            bool ok = fingerprintAuth.enrollSimple((uint16_t)id, chat_id, label);
+
+            if (!ok) {
+                _bot.sendMessage(chat_id,
+                                "Регистрация отпечатка в слот #" + String(id) +
+                                " завершилась с ошибкой.",
+                                "");
+            }
+        } else if (text == "/photo") {
+            if (!_accessManager.canConfigure(role)) {
+                _bot.sendMessage(chat_id,
+                                "🚫 Недостаточно прав для запроса фото.",
+                                "");
+                continue;
+            }
+
+            _bot.sendMessage(chat_id,
+                            "📸 Делаю фото, подождите...",
+                            "");
+
+            bool ok = safeCamera.sendPhoto(chat_id);
+            if (!ok) {
+                _bot.sendMessage(chat_id,
+                                "❌ Не удалось сделать или отправить фото.",
+                                "");
+            }
+        } else {
             _bot.sendMessage(chat_id,
                              "Неизвестная команда. Напиши /help.",
                              "");

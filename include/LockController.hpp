@@ -5,10 +5,10 @@ class LockController {
 public:
     LockController(int pin, unsigned long openDurationMs);
 
-    void begin();   // Инициализация пина, закрываем замок
-    void open();    // Открыть замок на заданное время
-    void close();   // Принудительно закрыть замок
-    void update();  // Вызывать в loop() для авто-закрытия
+    void begin();
+    void open();
+    void close();
+    void update();
 
     bool isOpen() const;
     String getStatusText() const;

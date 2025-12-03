@@ -8,11 +8,11 @@ LockController::LockController(int pin, unsigned long openDurationMs)
 
 void LockController::begin() {
     pinMode(_pin, OUTPUT);
-    close();  // на старте закрываем
+    close();
 }
 
 void LockController::open() {
-    digitalWrite(_pin, HIGH);   // подстрой под своё реле (HIGH/LOW)
+    digitalWrite(_pin, HIGH);
     _isOpen = true;
     _openedAt = millis();
     Serial.println("[LOCK] Замок открыт");

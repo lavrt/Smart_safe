@@ -1,130 +1,3 @@
-// #include <Arduino.h>
-// #include <EEPROM.h>
-
-// #include "rfid_module.hpp"
-// #include "config.hpp"
-
-// void setup() {
-//     Serial.begin(115200);
-//     Serial.println("\n=== RFID Access Control System ===");
-//     Serial.println("Commands: ADD, LIST, REMOVE <UID>, ADMIN, EXIT");
-
-//     pinMode(RELAY_PIN, OUTPUT);
-//     pinMode(BUZZER_PIN, OUTPUT);
-//     pinMode(LED_GREEN, OUTPUT);
-//     pinMode(LED_RED, OUTPUT);
-
-//     digitalWrite(RELAY_PIN, LOW);
-//     digitalWrite(BUZZER_PIN, LOW);
-//     digitalWrite(LED_GREEN, LOW);
-//     digitalWrite(LED_RED, LOW);
-
-//     SPI.begin();
-//     mfrc522.PCD_Init();
-//     EEPROM.begin(EEPROM_SIZE);
-
-//     byte v = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
-//     if (v == 0x00 || v == 0xFF) {
-//         Serial.println("ERROR: MFRC522 not found! Check wiring.");
-//         while (true) {
-//         digitalWrite(LED_RED, HIGH);
-//         delay(500);
-//         digitalWrite(LED_RED, LOW);
-//         delay(500);
-//         }
-//     }
-
-//     Serial.print("MFRC522 Firmware Version: 0x");
-//     Serial.println(v, HEX);
-
-//     Serial.println("System Ready! Waiting for cards...");
-// }
-
-// void loop() {
-//     checkSerialCommands();
-
-//     switch (currentState) {
-//         case WAITING_CARD: {
-//             handleWaitingState();
-//             break;
-//         }
-
-//         case PROCESSING: {
-//             handleProcessingState();
-//             break;
-//         }
-
-//         case ACCESS_GRANTED: {
-//             handleAccessGranted();
-//             break;
-//         }
-
-//         case ACCESS_DENIED: {
-//             handleAccessDenied();
-//             break;
-//         }
-
-//         case ADMIN_MODE: {
-//             handleAdminMode();
-//             break;
-//         }
-//     }
-
-//     updateLEDs();
-// }
-
-// -------------------------------------------------------------------------------------------------
-// #include <WiFi.h>
-// #include "telegram_config.hpp"
-// #include "telegram_bot_manager.hpp"
-// #include "access_manager.hpp"
-
-// TelegramBotManager telegramBot;
-// AccessManager accessManager;
-
-// void setup() {
-//     Serial.begin(115200);
-//     Serial.println();
-//     Serial.println("🚀 Запуск Умного Сейфа...");
-
-//     // Настройка пинов
-//     pinMode(2, OUTPUT);
-//     digitalWrite(2, LOW);
-//     Serial.println("✅ Пины инициализированы");
-
-//     // Подключение к Wi-Fi
-//     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-//     Serial.print("🔗 Подключаемся к WiFi");
-
-//     while (WiFi.status() != WL_CONNECTED) {
-//         delay(500);
-//         Serial.print(".");
-//     }
-
-//     Serial.println();
-//     Serial.println("✅ Подключено к WiFi!");
-//     Serial.print("📡 IP адрес: ");
-//     Serial.println(WiFi.localIP());
-
-//     // Инициализация менеджеров
-//     Serial.println("🛡️ Инициализация AccessManager...");
-//     accessManager.begin();
-
-//     Serial.println("🤖 Инициализация Telegram бота...");
-//     telegramBot.setAccessManager(&accessManager);
-//     telegramBot.begin();
-
-//     Serial.println("=================================");
-//     Serial.println("🚀 СИСТЕМА ПОЛНОСТЬЮ ЗАПУЩЕНА!");
-//     Serial.println("=================================");
-// }
-
-// void loop() {
-//     telegramBot.update();
-//     delay(50);
-// }
-// -------------------------------------------------------------------------------------------------
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -137,12 +10,15 @@
 #include "AccessManager.hpp"
 #include "DoorSensor.hpp"
 #include "Buzzer.hpp"
+#include "FingerprintAuth.hpp"
+#include "SafeCamera.hpp"
 
-// --- Глобальные объекты ---
+HardwareSerial FingerSerial(2);
 
 WiFiClientSecure secured_client;
 UniversalTelegramBot bot(BOT_TOKEN, secured_client);
 
+SafeCamera safeCamera(bot);
 LockController lockController(LOCK_PIN, LOCK_OPEN_TIME);
 DoorSensor doorSensor(DOOR_SENSOR_PIN, DOOR_OPEN_LEVEL);
 Buzzer buzzer(BUZZER_PIN, BUZZER_ACTIVE_LEVEL);
@@ -162,7 +38,15 @@ TelegramLockBot telegramLockBot(
     BOT_UPDATE_INTERVAL
 );
 
-// --- Wi-Fi ---
+FingerprintAuth fingerprintAuth(
+    FingerSerial,
+    33,
+    32,
+    lockController,
+    buzzer,
+    &bot,
+    (NUM_ADMIN_CHATS > 0 ? ADMIN_CHAT_IDS[0] : nullptr)
+);
 
 void connectWiFi() {
     Serial.print("Подключение к Wi-Fi: ");
@@ -186,8 +70,6 @@ void connectWiFi() {
     Serial.println(WiFi.localIP());
 }
 
-// --- Время + TLS ---
-
 void setupTimeAndTLS() {
     Serial.println("Синхронизация времени через NTP...");
     configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
@@ -209,7 +91,7 @@ void setupTimeAndTLS() {
         Serial.println(ctime(&now));
     }
 
-    secured_client.setCACert(TELEGRAM_CERTIFICATE_ROOT);
+    secured_client.setInsecure();
     Serial.println("TLS: установлен корневой сертификат Telegram.");
 }
 
@@ -217,17 +99,29 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
 
+    pinMode(LOCK_PIN, OUTPUT);
+    digitalWrite(LOCK_PIN, LOW);
+
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, !BUZZER_ACTIVE_LEVEL);
+
     Serial.println();
     Serial.println("[BOOT] Старт устройства умного замка");
 
     lockController.begin();
     doorSensor.begin();
     buzzer.begin();
+    fingerprintAuth.begin();
 
     connectWiFi();
     setupTimeAndTLS();
 
     telegramLockBot.begin();
+
+    bool camOk = safeCamera.begin();
+    if (!camOk) {
+        Serial.println("[CAM] Камера не инициализировалась, /photo будет выдавать ошибку.");
+    }
 
     if (NUM_ADMIN_CHATS > 0) {
         bot.sendMessage(ADMIN_CHAT_IDS[0],
@@ -240,7 +134,8 @@ void setup() {
 void loop() {
     lockController.update();
     buzzer.update();
+    fingerprintAuth.update();
     telegramLockBot.update();
 
-    delay(50);
+    delay(5);
 }

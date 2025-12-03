@@ -35,5 +35,5 @@ private:
     void sendHelp(const String& chat_id, Role role);
 
     String roleToText(Role role) const;
-    String buildStatusText() const; // замок + дверь
+    String buildStatusText() const;
 };
