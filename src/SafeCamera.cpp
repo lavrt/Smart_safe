@@ -36,12 +36,12 @@ bool SafeCamera::initCamera() {
     config.pin_reset    = RESET_GPIO_NUM;
 
     config.xclk_freq_hz = 20000000;
-    config.pixel_format = PIXFORMAT_RGB565;
+    config.pixel_format = PIXFORMAT_YUV422;   // 👈 вместо RGB565
 
     if (psramFound()) {
         Serial.println("[CAM] PSRAM найден.");
-        config.frame_size   = FRAMESIZE_QVGA;
-        config.jpeg_quality = 12;
+        config.frame_size   = FRAMESIZE_VGA;   // 640x480
+        config.jpeg_quality = 12;             // для frame2jpg всё равно, но пусть будет
         config.fb_count     = 2;
         config.fb_location  = CAMERA_FB_IN_PSRAM;
     } else {
@@ -63,13 +63,29 @@ bool SafeCamera::initCamera() {
 
     sensor_t* s = esp_camera_sensor_get();
     if (s) {
-        // TODO rotate photo
+        // гарантия размера кадра
+        s->set_framesize(s, config.frame_size);
+        // дальше можно чуть подкрутить картинку:
+        s->set_brightness(s, 0);
+        s->set_contrast(s, 1);
+        s->set_saturation(s, 0);
+        s->set_gainceiling(s, GAINCEILING_8X);
+        s->set_exposure_ctrl(s, 1);
+        s->set_aec2(s, 1);
+        s->set_ae_level(s, 0);
+        s->set_whitebal(s, 1);
+        s->set_awb_gain(s, 1);
+        s->set_wb_mode(s, 0);
+        s->set_lenc(s, 1);
+        // s->set_vflip(s, 1);  // если нужно
+        // s->set_hmirror(s, 1);
     }
 
     _initialized = true;
-    Serial.println("[CAM] Камера OV2640 инициализирована (PIXFORMAT_RGB565).");
+    Serial.println("[CAM] Камера инициализирована (PIXFORMAT_YUV422).");
     return true;
 }
+
 
 bool SafeCamera::begin() {
     esp_camera_deinit();
@@ -88,13 +104,12 @@ bool SafeCamera::sendPhoto(const String& chatId) {
         }
     }
 
-    Serial.println("[CAM] Снимаю фото (RGB565)...");
+    Serial.println("[CAM] Снимаю фото (YUV422)...");
 
+    // промываем 1–2 кадра
     for (int i = 0; i < 2; ++i) {
         camera_fb_t* flushFb = esp_camera_fb_get();
-        if (!flushFb) {
-            break;
-        }
+        if (!flushFb) break;
         esp_camera_fb_return(flushFb);
     }
 
@@ -122,19 +137,22 @@ bool SafeCamera::sendPhoto(const String& chatId) {
         }
     }
 
-    Serial.printf("[CAM] Кадр (RGB565): %dx%d, %u байт, формат=%d\n",
+    Serial.printf("[CAM] Кадр: %dx%d, %u байт, формат=%d\n",
                   fb->width, fb->height, fb->len, fb->format);
+
+    // ждём YUV422 или хотя бы НЕ JPEG (JPEG мы здесь не ждём)
+    if (fb->format == PIXFORMAT_JPEG) {
+        // теоретически может оказаться JPEG — тогда можно сразу слать,
+        // но в твоём случае, скорее всего, будет YUV422
+        Serial.println("[CAM] Неожиданный JPEG — можно слать напрямую.");
+    }
 
     uint8_t* jpgBuf = nullptr;
     size_t jpgLen   = 0;
 
-    bool convOk = fmt2jpg(
-        fb->buf,
-        fb->len,
-        fb->width,
-        fb->height,
-        (pixformat_t)fb->format,
-        80,
+    bool convOk = frame2jpg(
+        fb,
+        90,          // качество
         &jpgBuf,
         &jpgLen
     );
@@ -142,7 +160,7 @@ bool SafeCamera::sendPhoto(const String& chatId) {
     esp_camera_fb_return(fb);
 
     if (!convOk || !jpgBuf || jpgLen == 0) {
-        Serial.println("[CAM] fmt2jpg: не удалось сконвертировать RGB565 в JPEG.");
+        Serial.println("[CAM] frame2jpg: не удалось сконвертировать в JPEG.");
         _bot.sendMessage(chatId,
                          "❌ Не удалось преобразовать кадр в JPEG.",
                          "");

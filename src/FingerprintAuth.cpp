@@ -127,7 +127,7 @@ void FingerprintAuth::update() {
 }
 
 bool FingerprintAuth::enrollSimple(uint16_t id, const String& chatId, const String& label) {
-        if (!_bot) {
+    if (!_bot) {
         Serial.println("[FP] enrollSimple: bot == nullptr, не можем слать сообщения.");
         return false;
     }
