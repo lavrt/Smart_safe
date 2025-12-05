@@ -13,6 +13,7 @@
 #include "FingerprintAuth.hpp"
 #include "SafeCamera.hpp"
 #include "RfidReader.hpp"
+#include "MotionSensor.hpp"
 
 HardwareSerial FingerSerial(2);
 
@@ -24,6 +25,7 @@ LockController lockController(LOCK_PIN, LOCK_OPEN_TIME);
 DoorSensor doorSensor(DOOR_SENSOR_PIN, DOOR_OPEN_LEVEL);
 Buzzer buzzer(BUZZER_PIN, BUZZER_ACTIVE_LEVEL);
 RfidReader rfid;
+MotionSensor motionSensor;
 
 AccessManager accessManager(
     ADMIN_CHAT_IDS,  NUM_ADMIN_CHATS,
@@ -125,6 +127,11 @@ void setup() {
         Serial.println("[RFID] PN532 не инициалирован, RFID пока работать не будет.");
     }
 
+    bool accOk = motionSensor.begin();
+    if (!accOk) {
+        Serial.println("[ACC] Акселерометр не инициализировался, датчик движения не работает.");
+    }
+
     bool camOk = safeCamera.begin();
     if (!camOk) {
         Serial.println("[CAM] Камера не инициализировалась, /photo будет выдавать ошибку.");
@@ -139,6 +146,12 @@ void setup() {
 }
 
 void loop() {
+    if (motionSensor.loop(1.5f)) {
+        telegramLockBot.notifyAdmins(
+            "🚨 Обнаружено сильное движение/удар по сейфу!\n"
+            "Проверьте, всё ли в порядке."
+        );
+    }
     lockController.update();
     buzzer.update();
     fingerprintAuth.update();
@@ -153,8 +166,8 @@ void loop() {
             Serial.println("[RFID] Авторизованная карта, открываем замок.");
 
             if (!lockController.isOpen()) {
-                lockController.open();   // как в TelegramBot по команде /open
-                buzzer.beep(2);          // если хочешь короткий писк при успехе
+                lockController.open();
+                buzzer.beep(2);
             } else {
                 Serial.println("[RFID] Замок уже открыт.");
             }

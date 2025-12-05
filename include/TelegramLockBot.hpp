@@ -21,6 +21,7 @@ public:
 
     void begin();
     void update();
+    void notifyAdmins(const String& message);
 
 private:
     UniversalTelegramBot& _bot;

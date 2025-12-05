@@ -1,6 +1,7 @@
 #include "TelegramLockBot.hpp"
 #include "FingerprintAuth.hpp"
 #include "SafeCamera.hpp"
+#include "Config.hpp"
 
 extern SafeCamera safeCamera;
 extern FingerprintAuth fingerprintAuth;
@@ -46,12 +47,20 @@ void TelegramLockBot::sendHelp(const String& chat_id, Role role) {
     help += "/start  - информация о боте и ваша роль\n";
     help += "/status - статус замка и двери\n";
     help += "/help   - это сообщение\n";
+    help += "/photo  - получение фотографии\n";
 
     if (_accessManager.canOpen(role)) {
         help += "/open   - открыть замок\n";
     }
 
     _bot.sendMessage(chat_id, help, "Markdown");
+}
+
+void TelegramLockBot::notifyAdmins(const String& message) {
+    for (size_t i = 0; i < NUM_ADMIN_CHATS; ++i) {
+        String adminChatId = ADMIN_CHAT_IDS[i];
+        _bot.sendMessage(adminChatId, message, "");
+    }
 }
 
 void TelegramLockBot::handleNewMessages(int numNewMessages) {
