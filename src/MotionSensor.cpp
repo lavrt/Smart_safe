@@ -1,20 +1,19 @@
 #include "MotionSensor.hpp"
 
 #include <Wire.h>
-#include <Adafruit_ADXL345_U.h>   // здесь уже можно, main.cpp это не видит
-#include <Adafruit_Sensor.h>      // тут объявлен sensors_event_t и sensor_t
+#include <Adafruit_ADXL345_U.h>
+#include <Adafruit_Sensor.h>
 
 MotionSensor::MotionSensor()
     : _accel(nullptr),
       _lastCheckMs(0),
-      _checkIntervalMs(100) // проверяем 10 раз в секунду
+      _checkIntervalMs(100)
 {
 }
 
 bool MotionSensor::begin() {
-    // Создаём объект акселерометра, если ещё не создан
     if (_accel == nullptr) {
-        _accel = new Adafruit_ADXL345_Unified(12345); // произвольный ID
+        _accel = new Adafruit_ADXL345_Unified(12345);
     }
 
     if (!_accel->begin()) {
@@ -24,7 +23,6 @@ bool MotionSensor::begin() {
 
     Serial.println("[ACC] ADXL345 найден и инициализирован.");
 
-    // Настройка диапазона, например +/- 4g
     _accel->setRange(ADXL345_RANGE_4_G);
 
     return true;
@@ -58,10 +56,8 @@ bool MotionSensor::detectShock(float thresholdG) {
     float a2 = ax*ax + ay*ay + az*az;
     float a  = sqrtf(a2);
 
-    // 1g ≈ 9.81 m/s^2
     float g  = a / 9.81f;
 
-    // В покое g ~1; при ударе/движении сильно больше
     return (g > thresholdG);
 }
 

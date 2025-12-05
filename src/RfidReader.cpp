@@ -1,10 +1,6 @@
 #include "RfidReader.hpp"
 #include <Wire.h>
 
-// ВНИМАНИЕ: PN532 требует два аргумента в конструкторе (irq, reset),
-// но в I2C-режиме библиотека с ними не работает как с реальными пинами.
-// Мы просто передаём фиктивные значения 0 и 0 — физически НИЧЕГО к этим
-// пинам ESP32 не подключаем.
 #define PN532_FAKE_IRQ   0
 #define PN532_FAKE_RESET 0
 
@@ -22,7 +18,6 @@ void RfidReader::loadDefaultAuthUids() {
 }
 
 bool RfidReader::begin() {
-    // общий I2C с камерой: SDA=26, SCL=27
     Wire.begin(_sdaPin, _sclPin);
 
     _nfc.begin();
@@ -42,7 +37,6 @@ bool RfidReader::begin() {
     Serial.print('.');
     Serial.println(versiondata & 0xFF);
 
-    // Нормальный режим, слушаем карты
     _nfc.SAMConfig();
 
     loadDefaultAuthUids();
@@ -57,7 +51,6 @@ bool RfidReader::readCard(String& uidHex) {
     uint8_t uid[7];
     uint8_t uidLength = 0;
 
-    // Таймаут маленький, чтобы не блокировать весь loop (50 мс)
     bool success = _nfc.readPassiveTargetID(
         PN532_MIFARE_ISO14443A,
         uid,
@@ -66,11 +59,9 @@ bool RfidReader::readCard(String& uidHex) {
     );
 
     if (!success) {
-        // карты нет
         return false;
     }
 
-    // Конвертация UID в строку HEX
     char buf[3];
     for (uint8_t i = 0; i < uidLength; ++i) {
         sprintf(buf, "%02X", uid[i]);

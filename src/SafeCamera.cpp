@@ -36,12 +36,12 @@ bool SafeCamera::initCamera() {
     config.pin_reset    = RESET_GPIO_NUM;
 
     config.xclk_freq_hz = 20000000;
-    config.pixel_format = PIXFORMAT_YUV422;   // 👈 вместо RGB565
+    config.pixel_format = PIXFORMAT_YUV422;
 
     if (psramFound()) {
         Serial.println("[CAM] PSRAM найден.");
-        config.frame_size   = FRAMESIZE_VGA;   // 640x480
-        config.jpeg_quality = 12;             // для frame2jpg всё равно, но пусть будет
+        config.frame_size   = FRAMESIZE_VGA;
+        config.jpeg_quality = 12;
         config.fb_count     = 2;
         config.fb_location  = CAMERA_FB_IN_PSRAM;
     } else {
@@ -63,9 +63,7 @@ bool SafeCamera::initCamera() {
 
     sensor_t* s = esp_camera_sensor_get();
     if (s) {
-        // гарантия размера кадра
         s->set_framesize(s, config.frame_size);
-        // дальше можно чуть подкрутить картинку:
         s->set_brightness(s, 0);
         s->set_contrast(s, 1);
         s->set_saturation(s, 0);
@@ -77,8 +75,6 @@ bool SafeCamera::initCamera() {
         s->set_awb_gain(s, 1);
         s->set_wb_mode(s, 0);
         s->set_lenc(s, 1);
-        // s->set_vflip(s, 1);  // если нужно
-        // s->set_hmirror(s, 1);
     }
 
     _initialized = true;
@@ -106,7 +102,6 @@ bool SafeCamera::sendPhoto(const String& chatId) {
 
     Serial.println("[CAM] Снимаю фото (YUV422)...");
 
-    // промываем 1–2 кадра
     for (int i = 0; i < 2; ++i) {
         camera_fb_t* flushFb = esp_camera_fb_get();
         if (!flushFb) break;
@@ -140,10 +135,7 @@ bool SafeCamera::sendPhoto(const String& chatId) {
     Serial.printf("[CAM] Кадр: %dx%d, %u байт, формат=%d\n",
                   fb->width, fb->height, fb->len, fb->format);
 
-    // ждём YUV422 или хотя бы НЕ JPEG (JPEG мы здесь не ждём)
     if (fb->format == PIXFORMAT_JPEG) {
-        // теоретически может оказаться JPEG — тогда можно сразу слать,
-        // но в твоём случае, скорее всего, будет YUV422
         Serial.println("[CAM] Неожиданный JPEG — можно слать напрямую.");
     }
 
@@ -152,7 +144,7 @@ bool SafeCamera::sendPhoto(const String& chatId) {
 
     bool convOk = frame2jpg(
         fb,
-        90,          // качество
+        90,
         &jpgBuf,
         &jpgLen
     );
